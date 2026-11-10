@@ -374,6 +374,11 @@ This is not a efficient as you can see as a algie bio mass but it can improve th
 
 ---
 
+## Skills & technologies
+
+`Arduino/C++` · `HTML/CSS`
+
+
 ## Maintenance & Audit
 
 - **Audit date:** 10 November 2026
