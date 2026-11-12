@@ -1,6 +1,6 @@
 # 🌿☀️ Solar Panel + Algae Bioreactor Hybrid System
 
-> **Dual-purpose green energy system** — harnesses solar power *and* cultivates algae for biomass energy while simultaneously scrubbing CO₂ from the atmosphere.
+> **Concept / prototype repository.** This project explores co-locating a photovoltaic panel and an algae photobioreactor. The repository contains an ESP32 monitoring/control sketch, wiring and cultivation notes, a planning BOM, research notes, and a static HTML concept page. It does not contain verified measurements of panel-efficiency gain, biomass yield, or CO₂ capture.
 
 ---
 
@@ -162,56 +162,59 @@ See [`BOM.csv`](BOM.csv) for complete spreadsheet with suppliers and part number
 
 ## Setup Instructions
 
-### Step 1: Build the Photobioreactor (PBR)
+This is a prototype/design repository, not a validated construction package. Confirm component datasheets, electrical ratings, sensor calibration, and biological requirements before building. The BOM and diagrams are planning material, not proof of an as-built system.
 
-1. Cut acrylic sheets (5mm thick) to desired panel size (e.g., 60cm × 40cm × 5cm depth).
-2. Seal edges with aquarium-safe silicone. Let cure 24 hours.
-3. Drill two holes at top (inlet + outlet) and one at bottom for drain.
-4. Install air diffuser stone at the bottom center.
-5. Connect air pump tubing to the air inlet.
-6. Fill with distilled water + algae growth medium (BG-11 or TAP solution).
-7. Inoculate with algae starter culture (10% v/v ratio).
+### Step 1: Review the hardware documents
 
-### Step 2: Mount the Solar Panel + PBR
+- [`BOM.csv`](BOM.csv) — proposed parts and rough cost estimates; prices and compatibility have not been verified.
+- [`circuit_diagram.md`](circuit_diagram.md) — conceptual system-level diagram.
+- [`wiring_guide.md`](wiring_guide.md) — sensor and relay pin mapping used by the current firmware.
+- [`troubleshooting.md`](troubleshooting.md) — common prototype issues.
+- [`algae_cultivation.md`](algae_cultivation.md) — cultivation notes; validate species-specific guidance before use.
 
-1. Mount semi-transparent solar panel in standard south-facing orientation (15–30° tilt in Northern Hemisphere; adjust for India ~15–20° tilt).
-2. Attach the PBR directly behind/below the panel using aluminum brackets.
-3. Ensure PBR faces the sky to receive diffused + transmitted light.
+The pH sensor connection in the wiring guide requires the specified voltage divider before ESP32 GPIO 34. The MH-Z19B requires a 5 V supply; follow the guide's UART level-protection notes. The relays are active-low in the current sketch. Do not connect pumps directly to ESP32 GPIO pins.
 
-### Step 3: Electrical Wiring
+### Step 2: Prepare a local firmware project
 
-1. Connect solar panel output to MPPT charge controller (observe polarity).
-2. Connect battery to MPPT controller (battery terminals).
-3. Connect 12V load bus to relay module.
-4. Wire air pump and water pump through relay channels.
-5. Connect Arduino/ESP32 to relay module signal pins (GPIO control).
-6. Wire all sensors to ESP32 (see [`/firmware/wiring_guide.md`](firmware/wiring_guide.md)).
+The firmware source is the root-level `main.cpp`. This repository currently has no `platformio.ini`, `src/` directory, or automated build configuration, so `pio run` from the repository root will **not** work as-is.
 
-### Step 4: Flash Firmware
+1. Install [VS Code](https://code.visualstudio.com/) and the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode).
+2. Create a local PlatformIO project for an ESP32 Dev Module (commonly `esp32dev`) using the Arduino framework.
+3. Copy this repository's `main.cpp` into the local project's `src/main.cpp`. Keep the repository file in place; this is a local build scaffold.
+4. Add compatible versions of these libraries to the local project: `PubSubClient`, `OneWire`, `DallasTemperature`, `BH1750`, `Adafruit INA219`, `MHZ19`, and `ArduinoJson`. `WiFi` and `Wire` come from the ESP32 Arduino core.
+5. In the local copy of `main.cpp`, configure `WIFI_SSID`, `WIFI_PASSWORD`, `MQTT_SERVER`, and `MQTT_PORT`. The current defaults include a placeholder Wi-Fi configuration and a broker address of `192.168.1.100:1883`; use values for your own network.
+6. From the **local PlatformIO project directory**, build, upload, and open the serial monitor:
 
 ```bash
-# Clone this repository
-git clone https://github.com/YOUR_USERNAME/solar-algae-hybrid.git
-cd solar-algae-hybrid/firmware
-
-# Install PlatformIO (recommended)
-pip install platformio
-
-# Build and upload to ESP32
+pio run
 pio run --target upload
-
-# Monitor serial output
 pio device monitor --baud 115200
 ```
 
-### Step 5: Algae Culture Maintenance
+These are the standard PlatformIO commands for the local scaffold; firmware compilation and hardware operation were not verified during this documentation pass.
 
-- **Temperature:** 20–30°C optimal (use heater/cooler as needed)
-- **pH:** 7.0–8.5 (dose CO₂ to lower, add NaHCO₃ to raise)
-- **Light:** 2,000–10,000 lux (supplemental LED if needed at night)
-- **Nutrients:** Refresh BG-11 medium every 7–14 days
-- **Harvesting:** Centrifuge or filter when culture reaches OD₆₈₀ > 1.5
-- **Air flow:** 0.1–0.5 vvm (volumes of air per volume of medium per minute)
+### Step 3: Configure and check MQTT
+
+| Setting | Current firmware default | Purpose |
+|---|---|---|
+| `MQTT_SERVER` | `192.168.1.100` | Broker IPv4 address |
+| `MQTT_PORT` | `1883` | MQTT port |
+| `MQTT_TOPIC` | `solar_algae/sensors` | JSON telemetry published about every 10 seconds |
+| `MQTT_CMD` | `solar_algae/control` | Plain-text command subscription |
+
+The telemetry JSON includes temperature, pH, lux, CO₂ ppm, voltage, current, power, air-pump state, grow-LED state, and uptime. The command payloads recognized by the sketch are `air_pump_on`, `air_pump_off`, `water_pump_on`, `water_pump_off`, `led_on`, and `led_off`. The air-pump schedule in the main loop can override a manual air-pump command, so verify control behaviour before connecting a real load.
+
+The sketch uses ordinary MQTT on port 1883 without authentication or TLS settings. Keep the broker and device on a trusted private network; do not expose this setup directly to the public internet.
+
+### Step 4: Prepare the biological prototype
+
+The steps below summarize the existing project notes, not a validated laboratory protocol. Use suitable PPE and species-specific guidance, and verify the growth medium, cleaning procedure, temperature, pH, light, and aeration requirements before inoculating a culture.
+
+1. Build and leak-check the photobioreactor before adding culture.
+2. Mounting and shading should be planned around the panel, enclosure, and culture's light needs; the proposed geometry has not been validated.
+3. Check sensors and pumps individually before enabling automated control.
+4. Use [`algae_cultivation.md`](algae_cultivation.md) for the project's current cultivation notes and [`troubleshooting.md`](troubleshooting.md) for a starting checklist.
+5. Record measured panel output, temperature, pH, light, and culture observations before drawing performance conclusions.
 
 ---
 
@@ -245,99 +248,45 @@ pio device monitor --baud 115200
 
 ---
 
-## Real-World Research & Results
+## Research context and performance claims
 
-### Studies That Have Tried This
+This repository does not report controlled measurements from a completed hybrid prototype. The numerical comparisons and named studies previously described in this README and in [`research_references.md`](research_references.md) have not been independently validated during this maintenance pass. Check each primary publication and its methods before using any cited value in a report, pitch, or scientific claim. Do not present the figures as results achieved by this project.
 
-#### 1. **University of California, Santa Barbara (UCSB) — 2014**
-- Tested semi-transparent OPV (organic photovoltaic) cells over algae cultures
-- **Result:** Algae growth was maintained; PV efficiency was 4–5% with 10% light transmission
-- Cooling effect reduced panel temperature by ~8°C
-
-#### 2. **Fraunhofer Institute, Germany — 2016–2019**
-- Integrated photobioreactors into building facades with CdTe solar cells
-- **Result:** System produced **0.9 kWh/m²/day** electrical + equivalent biomass energy
-- CO₂ reduction: **200–300g CO₂/m²/day** absorbed
-
-#### 3. **IIT Bombay, India — 2020**
-- Small-scale prototype with *Chlorella vulgaris* and polycrystalline Si panels
-- **Result:** Panel efficiency improved by 6% due to evaporative cooling
-- Algae productivity: **12g dry weight/m²/day**
-
-#### 4. **Wageningen University, Netherlands — 2021**
-- Commercial-scale pilot on greenhouse roof
-- **Result:** Combined energy yield 20–35% higher than standalone PV per m²
-
-#### 5. **AlgaePARC Research Facility, Netherlands (ongoing)**
-- World's leading algae production research facility
-- Published data shows optimized flat-plate PBR can yield **20–30g/m²/day**
-
-### Summary of Published Efficiencies
-
-| Metric | Standalone PV | Standalone Algae PBR | Hybrid System |
-|--------|--------------|---------------------|--------------|
-| Electrical efficiency | 18–22% | N/A | 15–20% (slight reduction) |
-| Biomass yield (g/m²/day) | N/A | 15–25g | 10–20g (less light) |
-| CO₂ fixation (g/m²/day) | 0 | 20–40g | 15–30g |
-| Total energy yield (kWh eq./m²/day) | 0.9–1.1 | 0.3–0.6 | **1.2–1.6** |
-| Panel operating temp (°C) | 45–65 | N/A | **35–50** (cooler!) |
-
----
-
-## Efficiency Data
-
-### Why the Hybrid Beats Individual Systems
-
-```
-Total Energy Yield Comparison (per 1m², sunny day):
-
-Standalone PV only:   ████████████░░░░░░░░  ~1.0 kWh eq.
-Algae PBR only:       ████░░░░░░░░░░░░░░░░  ~0.4 kWh eq.
-Hybrid System:        ████████████████░░░░  ~1.4 kWh eq.  ← 40% more!
-```
-
-### CO₂ Absorption Rate
-
-- *Chlorella vulgaris*: **~1.83g CO₂ per 1g biomass**
-- At 15g/m²/day: **~27g CO₂/m²/day** fixed
-- A 10m² system fixes: **~270g CO₂/day = ~100kg CO₂/year**
-- Equivalent to: absorbing CO₂ from **~430 km of average car driving/year**
-
-### Panel Cooling Benefit
-
-PV cells lose ~0.4–0.5% efficiency per °C above 25°C.
-Algae layer keeps panel 10–15°C cooler → **+4–7% electrical efficiency** recovered.
-
----
+The concept has plausible engineering questions to investigate—light transmission to the culture, thermal coupling, panel output, culture productivity, pumping energy, and maintenance cost—but these require measured data from a defined test setup.
 
 ## File Structure
 
-```
-solar-algae-hybrid/
-├── README.md                    ← You are here
-├── LICENSE
-├── BOM.csv                      ← Bill of materials
+```text
+.
+├── README.md                 # Project overview, setup, limitations
+├── BOM.csv                  # Draft bill of materials and cost estimates
+├── circuit_diagram.md        # Conceptual system diagram and pin map
+├── wiring_guide.md           # Firmware sensor/relay wiring notes
+├── main.cpp                  # ESP32 Arduino-framework firmware source
+├── index.html                # Static HTML concept page; not connected to MQTT by the firmware
+├── algae_cultivation.md      # Draft algae cultivation notes
+├── research_references.md    # Research notes; citations need independent verification
+├── troubleshooting.md        # Prototype troubleshooting notes
 ├── CONTRIBUTING.md
-├── circuit/
-│   ├── circuit_diagram.md       ← Detailed ASCII circuit
-│   ├── schematic.png            ← (Add your own image)
-│   └── wiring_notes.md
-├── firmware/
-│   ├── src/
-│   │   └── main.cpp             ← ESP32 Arduino code
-│   ├── platformio.ini
-│   └── wiring_guide.md
-├── docs/
-│   ├── algae_cultivation.md     ← Algae growing guide
-│   ├── troubleshooting.md
-│   └── research_references.md   ← Full bibliography
-├── data/
-│   └── sample_readings.csv      ← Example sensor data
-└── images/
-    └── (add your photos here)
+└── LICENSE
 ```
 
----
+## Firmware configuration and known behaviour
+
+- Sensor reads and telemetry publication are scheduled at approximately 10-second intervals.
+- The firmware uses GPIO 4 for the DS18B20 data line, GPIO 34 for pH ADC input, GPIO 16/17 for MH-Z19B UART, GPIO 21/22 for the shared I²C bus, and GPIO 25/26/27 for the air-pump, water-pump, and grow-light relays.
+- The relay outputs are active-low. The sketch turns the water-pump relay on during startup, cycles the air pump for 30 minutes on / 30 minutes off, and switches the grow-light relay on when reported light is below 1,000 lux.
+- The pH calculation uses a default linear formula; calibrate it with buffer solutions before treating pH values as accurate. Missing/disconnected sensors may yield invalid or misleading readings.
+- `index.html` is a static page. No live MQTT connection from that page to the firmware was found in the files inspected.
+
+## Known limitations and verification status
+
+- No `platformio.ini`, dependency lockfile, automated test suite, or CI build is present in the repository.
+- The firmware, sensor calibration, relay timing, MQTT commands, and physical wiring were not compiled or tested on hardware during this pass.
+- The wiring diagram, BOM, cultivation guidance, and research notes should be treated as drafts. Confirm actual part ratings and safe power distribution before connecting pumps or relays.
+- No measured panel-efficiency improvement, net energy gain, biomass yield, or CO₂ capture result is established by this repository.
+- MQTT uses an unauthenticated, unencrypted configuration in the current sketch. Use a trusted private network and do not expose the broker/device publicly.
+
 
 ## Contributing
 
@@ -365,14 +314,12 @@ MIT License — see [`LICENSE`](LICENSE) for details.
 - Open-source Arduino/ESP32 community
 
 ---
-## efficiency
+## Performance measurement status
 
-This is not a efficient as you can see as a algie bio mass but it can improve the efficiency of the solar pannel by 20 to 25% by reducing its surface temprature.
+No validated efficiency gain is established by this repository. Any percentage or energy-yield estimate should be treated as a hypothesis until a documented experiment compares panel output, culture growth, auxiliary pump/LED energy, and operating conditions against a suitable baseline.
 
-*Built with 💚 for a cleaner, greener planet.*
+*Built with a focus on exploring a cleaner, greener energy concept.*
 
-
----
 
 ## Skills & technologies
 
